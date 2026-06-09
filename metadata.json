@@ -1,0 +1,6 @@
+{
+  "name": "Stal Martial Arts School",
+  "description": "Martial arts school STAL website in Stavropol. Training for children and adults, professional coaches, online registration and feedback.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
