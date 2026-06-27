@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { saveRequest } from './_lib/supabase';
+import { saveRequest } from './_lib/supabase.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
