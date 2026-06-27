@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import About from './components/About';
@@ -17,27 +17,6 @@ import { AnimatePresence } from 'motion/react';
 export default function App() {
   const [selectedProgramSignal, setSelectedProgramSignal] = useState('');
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [leadsCount, setLeadsCount] = useState(0);
-
-  const calculateLeadsCount = () => {
-    try {
-      const trialRaw = localStorage.getItem('stal_trial_requests');
-      const feedRaw = localStorage.getItem('stal_feedback_messages');
-      const trials = trialRaw ? JSON.parse(trialRaw) : [];
-      const feeds = feedRaw ? JSON.parse(feedRaw) : [];
-      
-      const unreadFeeds = feeds.filter((f: any) => f.status === 'unread').length;
-      const newTrials = trials.filter((t: any) => t.status === 'new').length;
-      
-      setLeadsCount(unreadFeeds + newTrials);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    calculateLeadsCount();
-  }, []);
 
   const handleSelectProgram = (programName: string) => {
     setSelectedProgramSignal(programName);
@@ -65,10 +44,9 @@ export default function App() {
     <div className="relative min-h-screen bg-[#0c0c0e] text-zinc-100 flex flex-col justify-between overflow-x-hidden selection:bg-red-600 selection:text-white">
       
       {/* Header component */}
-      <Header 
+      <Header
         onTrialClick={handleScrollToTrial}
         onDashboardOpen={() => setIsAdminOpen(true)}
-        totalLeads={leadsCount}
       />
 
       {/* Main Single Page Sections */}
@@ -90,15 +68,12 @@ export default function App() {
         <Trainers />
 
         {/* RECRUIT TRIAL SECTION */}
-        <TrialSection 
-          selectedProgram={selectedProgramSignal} 
-          onNewRequestAdded={calculateLeadsCount}
+        <TrialSection
+          selectedProgram={selectedProgramSignal}
         />
 
         {/* CONTACTS AND MESSAGE FEEDBACK SECTION */}
-        <ContactsSection 
-          onNewFeedbackAdded={calculateLeadsCount}
-        />
+        <ContactsSection />
 
       </main>
 
@@ -127,9 +102,9 @@ export default function App() {
       {/* ACTION ADMIN PANEL DASHBOARD OVERLAY */}
       <AnimatePresence>
         {isAdminOpen && (
-          <LeadDashboard 
+          <LeadDashboard
             onClose={() => setIsAdminOpen(false)}
-            onDataChanged={calculateLeadsCount}
+            onDataChanged={() => {}}
           />
         )}
       </AnimatePresence>

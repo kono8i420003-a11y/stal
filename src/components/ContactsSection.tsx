@@ -2,17 +2,13 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle } from 'lucide-react';
 import { CONTACT_INFO } from '../data';
-import { FeedbackMessage } from '../types';
 
-interface ContactsSectionProps {
-  onNewFeedbackAdded: () => void;
-}
-
-export default function ContactsSection({ onNewFeedbackAdded }: ContactsSectionProps) {
+export default function ContactsSection() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [age, setAge] = useState('');
   const [comment, setComment] = useState('');
+  const [company, setCompany] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -52,6 +48,11 @@ export default function ContactsSection({ onNewFeedbackAdded }: ContactsSectionP
     e.preventDefault();
     setErrorMsg('');
 
+    // Honeypot: bots tend to fill every input, real users never see this field.
+    if (company.trim()) {
+      return;
+    }
+
     if (!name.trim()) {
       setErrorMsg('Пожалуйста, введите ваше имя');
       return;
@@ -74,23 +75,7 @@ export default function ContactsSection({ onNewFeedbackAdded }: ContactsSectionP
       return;
     }
 
-    // Save feedback to LocalStorage
-    const saved = localStorage.getItem('stal_feedback_messages');
-    const existing: FeedbackMessage[] = saved ? JSON.parse(saved) : [];
-
-    const newMessage: FeedbackMessage = {
-      id: Math.random().toString(36).substring(2, 9),
-      name: name.trim(),
-      phone: phone,
-      age: ageNum,
-      message: comment.trim(),
-      submittedAt: new Date().toISOString(),
-      status: 'unread'
-    };
-
-    localStorage.setItem('stal_feedback_messages', JSON.stringify([newMessage, ...existing]));
-
-    // Asynchronously send to telegram proxy server API
+    // Asynchronously send to telegram proxy server API (also persists the message in Supabase)
     fetch('/api/notify-telegram', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -99,7 +84,8 @@ export default function ContactsSection({ onNewFeedbackAdded }: ContactsSectionP
         name: name.trim(),
         phone: phone,
         age: ageNum,
-        message: comment.trim()
+        message: comment.trim(),
+        company
       })
     })
     .then(res => res.json())
@@ -113,8 +99,6 @@ export default function ContactsSection({ onNewFeedbackAdded }: ContactsSectionP
     setComment('');
     setIsSuccess(true);
     setErrorMsg('');
-
-    onNewFeedbackAdded();
 
     // Reset banner after 5 sec
     setTimeout(() => {
@@ -228,7 +212,19 @@ export default function ContactsSection({ onNewFeedbackAdded }: ContactsSectionP
                   </motion.div>
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-5" id="contacts_feedback_inner_form">
-                    
+
+                    {/* Honeypot field: hidden from real users, catches bots */}
+                    <input
+                      type="text"
+                      name="company"
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      tabIndex={-1}
+                      autoComplete="off"
+                      aria-hidden="true"
+                      className="absolute opacity-0 pointer-events-none w-0 h-0"
+                    />
+
                     {/* Name input */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">Имя</label>

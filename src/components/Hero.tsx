@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { STATS } from '../data';
 // @ts-ignore
-import heroBg from '../assets/images/hero_background_1780984298970.png';
+import heroBg from '../assets/images/hero_background_1780984298970.webp';
 
 interface HeroProps {
   onTrialClick: () => void;

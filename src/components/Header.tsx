@@ -5,10 +5,9 @@ import { Menu, X, ShieldAlert } from 'lucide-react';
 interface HeaderProps {
   onTrialClick: () => void;
   onDashboardOpen: () => void;
-  totalLeads: number;
 }
 
-export default function Header({ onTrialClick, onDashboardOpen, totalLeads }: HeaderProps) {
+export default function Header({ onTrialClick, onDashboardOpen }: HeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -94,11 +93,6 @@ export default function Header({ onTrialClick, onDashboardOpen, totalLeads }: He
             >
               <ShieldAlert size={14} className="animate-pulse" />
               <span>ЗАЯВКИ</span>
-              {totalLeads > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white font-sans font-bold w-4 h-4 rounded-full flex items-center justify-center text-[9px] animate-bounce">
-                  {totalLeads}
-                </span>
-              )}
             </button>
           </nav>
 
@@ -121,11 +115,6 @@ export default function Header({ onTrialClick, onDashboardOpen, totalLeads }: He
               id="mobile_admin_btn"
             >
               <ShieldAlert size={16} />
-              {totalLeads > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px]">
-                  {totalLeads}
-                </span>
-              )}
             </button>
             <button
               id="mobile_menu_trigger"

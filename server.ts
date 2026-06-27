@@ -3,7 +3,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
-import { saveRequest } from './api/_lib/supabase';
+import {
+  saveRequest,
+  wasSubmittedRecently,
+  listRequests,
+  updateRequestStatus,
+  deleteRequest,
+  clearRequestsByType,
+} from './api/_lib/supabase';
+import { escapeHtml } from './api/_lib/telegram';
 
 // Load environment variables
 dotenv.config();
@@ -27,11 +35,24 @@ async function startServer() {
   // Secure API endpoint for Telegram Notifications
   app.post('/api/notify-telegram', async (req, res) => {
     try {
-      const { source, name, phone, age, message } = req.body;
+      const { source, name, phone, age, message, company } = req.body;
+
+      // Honeypot field: real users never fill this hidden input, bots usually do.
+      if (company) {
+        res.json({ status: 'success', message: 'Заявка принята.' });
+        return;
+      }
 
       if (!name || !phone) {
-         res.status(400).json({ 
-          error: 'Пожалуйста, заполните необходимые поля: имя и телефон.' 
+         res.status(400).json({
+          error: 'Пожалуйста, заполните необходимые поля: имя и телефон.'
+        });
+        return;
+      }
+
+      if (await wasSubmittedRecently(phone)) {
+        res.status(429).json({
+          error: 'Заявка с этим номером телефона уже отправлена. Пожалуйста, подождите минуту перед повторной отправкой.'
         });
         return;
       }
@@ -63,12 +84,12 @@ async function startServer() {
       // Format markdown-like Telegram notification text
       const heading = source === 'trial' ? '🔴 НОВАЯ ЗАЯВКА НА ПРОБНУЮ ТРЕНИРОВКУ' : '✉️ НОВОЕ СООБЩЕНИЕ ОБРАТНОЙ СВЯЗИ';
       let text = `<b>${heading}</b>\n\n`;
-      text += `<b>👤 Имя:</b> ${name}\n`;
-      text += `<b>📞 Телефон:</b> ${phone}\n`;
-      text += `<b>🎂 Возраст ученика:</b> ${age || 'Не указан'}\n`;
-      
+      text += `<b>👤 Имя:</b> ${escapeHtml(name)}\n`;
+      text += `<b>📞 Телефон:</b> ${escapeHtml(phone)}\n`;
+      text += `<b>🎂 Возраст ученика:</b> ${age ? escapeHtml(String(age)) : 'Не указан'}\n`;
+
       if (message) {
-        text += `<b>💬 Сообщение:</b> \n<i>${message}</i>\n`;
+        text += `<b>💬 Сообщение:</b> \n<i>${escapeHtml(message)}</i>\n`;
       }
       
       text += `\n<i>Школа СТАЛЬ © ${new Date().getFullYear()}</i>`;
@@ -104,6 +125,49 @@ async function startServer() {
         details: error.message
       });
     }
+  });
+
+  // Admin panel API: read/update/delete requests stored in Supabase
+  const requireAdminSecret = (req: express.Request, res: express.Response): boolean => {
+    const secret = process.env.ADMIN_PANEL_SECRET;
+    if (!secret || req.headers['x-admin-secret'] !== secret) {
+      res.status(401).json({ error: 'Неверный пароль администратора.' });
+      return false;
+    }
+    return true;
+  };
+
+  app.get('/api/admin/requests', async (req, res) => {
+    if (!requireAdminSecret(req, res)) return;
+    const requests = await listRequests();
+    res.json({ requests });
+  });
+
+  app.patch('/api/admin/requests', async (req, res) => {
+    if (!requireAdminSecret(req, res)) return;
+    const { id, status } = req.body;
+    if (!id || !status) {
+      res.status(400).json({ error: 'Нужны id и status.' });
+      return;
+    }
+    await updateRequestStatus(id, status);
+    res.json({ status: 'ok' });
+  });
+
+  app.delete('/api/admin/requests', async (req, res) => {
+    if (!requireAdminSecret(req, res)) return;
+    const { id, type } = req.query;
+    if (id && typeof id === 'string') {
+      await deleteRequest(id);
+      res.json({ status: 'ok' });
+      return;
+    }
+    if (type === 'trial' || type === 'feedback') {
+      await clearRequestsByType(type);
+      res.json({ status: 'ok' });
+      return;
+    }
+    res.status(400).json({ error: 'Нужен id или type.' });
   });
 
   // Vite development vs production serving strategy

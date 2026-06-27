@@ -1,9 +1,9 @@
 // @ts-ignore
-import trainerAndreyImg from './assets/images/trainer_andrey_1780984098163.png';
+import trainerAndreyImg from './assets/images/trainer_andrey_1780984098163.webp';
 // @ts-ignore
-import trainerDmitryImg from './assets/images/trainer_dmitry_1780984114601.png';
+import trainerDmitryImg from './assets/images/trainer_dmitry_1780984114601.webp';
 // @ts-ignore
-import trainerIgorImg from './assets/images/trainer_igor_1780984128129.png';
+import trainerIgorImg from './assets/images/trainer_igor_1780984128129.webp';
 
 export interface ProgramInfo {
   tag: string;

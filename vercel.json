@@ -6,6 +6,10 @@
       "destination": "/api/notify-telegram.ts"
     },
     {
+      "source": "/api/admin/requests",
+      "destination": "/api/admin/requests.ts"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

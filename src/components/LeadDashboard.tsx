@@ -1,151 +1,128 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { X, Trophy, MessageSquare, PhoneCall, Trash2, Database, ShieldAlert, Sparkles, Check } from 'lucide-react';
-import { TrialRequest, FeedbackMessage } from '../types';
+import { X, Trophy, MessageSquare, PhoneCall, Trash2, ShieldAlert, Check, RefreshCw } from 'lucide-react';
+
+interface AdminRequest {
+  id: string;
+  type: 'trial' | 'feedback';
+  name: string;
+  phone: string;
+  age: number | null;
+  message: string | null;
+  status: string;
+  created_at: string;
+}
 
 interface LeadDashboardProps {
   onClose: () => void;
   onDataChanged: () => void;
 }
 
+const SECRET_STORAGE_KEY = 'stal_admin_secret';
+
 export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardProps) {
   const [activeTab, setActiveTab] = useState<'trials' | 'feedback'>('trials');
-  const [trials, setTrials] = useState<TrialRequest[]>([]);
-  const [feedbacks, setFeedbacks] = useState<FeedbackMessage[]>([]);
+  const [requests, setRequests] = useState<AdminRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
 
-  // Reload data from local storage
-  const reloadData = () => {
-    const trialRaw = localStorage.getItem('stal_trial_requests');
-    const feedRaw = localStorage.getItem('stal_feedback_messages');
-    
-    setTrials(trialRaw ? JSON.parse(trialRaw) : []);
-    setFeedbacks(feedRaw ? JSON.parse(feedRaw) : []);
-  };
+  const trials = requests.filter(r => r.type === 'trial');
+  const feedbacks = requests.filter(r => r.type === 'feedback');
 
-  useEffect(() => {
-    reloadData();
+  const fetchData = useCallback(async (secret: string) => {
+    setLoading(true);
+    setAuthError('');
+    try {
+      const res = await fetch('/api/admin/requests', {
+        headers: { 'X-Admin-Secret': secret },
+      });
+      if (res.status === 401) {
+        sessionStorage.removeItem(SECRET_STORAGE_KEY);
+        setAuthError('Неверный пароль администратора.');
+        setRequests([]);
+        return;
+      }
+      const data = await res.json();
+      setRequests(data.requests ?? []);
+    } catch (e) {
+      console.error('Не удалось загрузить заявки:', e);
+      setAuthError('Не удалось загрузить заявки. Проверьте соединение.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleClearAll = () => {
-    if (confirm('Вы уверены, что хотите очистить всю базу заявок?')) {
-      if (activeTab === 'trials') {
-        localStorage.removeItem('stal_trial_requests');
-        setTrials([]);
-      } else {
-        localStorage.removeItem('stal_feedback_messages');
-        setFeedbacks([]);
+  const ensureSecretAndLoad = useCallback(() => {
+    let secret = sessionStorage.getItem(SECRET_STORAGE_KEY);
+    if (!secret) {
+      secret = prompt('Введите пароль администратора:') || '';
+      if (!secret) {
+        setAuthError('Пароль администратора не введён.');
+        return;
       }
-      onDataChanged();
+      sessionStorage.setItem(SECRET_STORAGE_KEY, secret);
     }
-  };
+    fetchData(secret);
+  }, [fetchData]);
 
-  const handleDeleteTrial = (id: string) => {
-    const updated = trials.filter(t => t.id !== id);
-    localStorage.setItem('stal_trial_requests', JSON.stringify(updated));
-    setTrials(updated);
+  useEffect(() => {
+    ensureSecretAndLoad();
+  }, [ensureSecretAndLoad]);
+
+  const withSecret = async (run: (secret: string) => Promise<Response>) => {
+    const secret = sessionStorage.getItem(SECRET_STORAGE_KEY);
+    if (!secret) {
+      ensureSecretAndLoad();
+      return;
+    }
+    const res = await run(secret);
+    if (res.status === 401) {
+      sessionStorage.removeItem(SECRET_STORAGE_KEY);
+      setAuthError('Неверный пароль администратора.');
+      return;
+    }
+    await fetchData(secret);
     onDataChanged();
   };
 
-  const handleDeleteFeedback = (id: string) => {
-    const updated = feedbacks.filter(f => f.id !== id);
-    localStorage.setItem('stal_feedback_messages', JSON.stringify(updated));
-    setFeedbacks(updated);
-    onDataChanged();
+  const handleClearAll = () => {
+    if (!confirm('Вы уверены, что хотите очистить всю базу заявок этой категории?')) return;
+    const type = activeTab === 'trials' ? 'trial' : 'feedback';
+    withSecret(secret =>
+      fetch(`/api/admin/requests?type=${type}`, {
+        method: 'DELETE',
+        headers: { 'X-Admin-Secret': secret },
+      })
+    );
   };
 
-  // Seeding mock submissions for ease of testing
-  const handleSeedData = () => {
-    const sampleTrials: TrialRequest[] = [
-      {
-        id: 't-1',
-        name: 'Алексей Смирнов',
-        phone: '+7 (918) 745-12-88',
-        studentAge: 27,
-        submittedAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-        status: 'new'
-      },
-      {
-        id: 't-2',
-        name: 'София Кузнецова (сын Никита)',
-        phone: '+7 (962) 441-99-31',
-        studentAge: 9,
-        submittedAt: new Date(Date.now() - 15000000).toISOString(), // 4h ago
-        status: 'completed'
-      }
-    ];
-
-    const sampleFeedbacks: FeedbackMessage[] = [
-      {
-        id: 'f-1',
-        name: 'Владислав Павлов',
-        phone: '+7 (905) 444-22-11',
-        age: 33,
-        message: 'Добрый день! Подскажите, есть ли вечерние группы ОФП по субботам? Спасибо!',
-        submittedAt: new Date(Date.now() - 42 * 60000).toISOString(), // 42 min ago
-        status: 'unread'
-      },
-      {
-        id: 'f-2',
-        name: 'Екатерина Романова',
-        phone: '+7 (928) 331-55-90',
-        age: 29,
-        message: 'Отличный зал! Ребенок в восторге от тренера Игоря Климова. Очень профессиональный подход к деткам.',
-        submittedAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-        status: 'read'
-      }
-    ];
-
-    // Merge with key local storage and reset
-    const savedTrials = localStorage.getItem('stal_trial_requests');
-    const existingTrials: TrialRequest[] = savedTrials ? JSON.parse(savedTrials) : [];
-    const mergedTrials = [...existingTrials];
-    sampleTrials.forEach(st => {
-      if (!mergedTrials.some(t => t.name === st.name)) {
-        mergedTrials.push(st);
-      }
-    });
-
-    const savedFeeds = localStorage.getItem('stal_feedback_messages');
-    const existingFeeds: FeedbackMessage[] = savedFeeds ? JSON.parse(savedFeeds) : [];
-    const mergedFeeds = [...existingFeeds];
-    sampleFeedbacks.forEach(sf => {
-      if (!mergedFeeds.some(f => f.name === sf.name)) {
-        mergedFeeds.push(sf);
-      }
-    });
-
-    localStorage.setItem('stal_trial_requests', JSON.stringify(mergedTrials));
-    localStorage.setItem('stal_feedback_messages', JSON.stringify(mergedFeeds));
-    
-    reloadData();
-    onDataChanged();
+  const handleDelete = (id: string) => {
+    withSecret(secret =>
+      fetch(`/api/admin/requests?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'X-Admin-Secret': secret },
+      })
+    );
   };
 
-  const handleToggleTrialStatus = (id: string) => {
-    const updated = trials.map(t => {
-      if (t.id === id) {
-        return { ...t, status: t.status === 'new' ? 'completed' : 'new' } as TrialRequest;
-      }
-      return t;
-    });
-    localStorage.setItem('stal_trial_requests', JSON.stringify(updated));
-    setTrials(updated);
-  };
+  const handleToggleStatus = (req: AdminRequest) => {
+    const nextStatus =
+      req.type === 'trial'
+        ? req.status === 'new' ? 'completed' : 'new'
+        : req.status === 'unread' ? 'read' : 'unread';
 
-  const handleToggleFeedStatus = (id: string) => {
-    const updated = feedbacks.map(f => {
-      if (f.id === id) {
-        return { ...f, status: f.status === 'unread' ? 'read' : 'unread' } as FeedbackMessage;
-      }
-      return f;
-    });
-    localStorage.setItem('stal_feedback_messages', JSON.stringify(updated));
-    setFeedbacks(updated);
+    withSecret(secret =>
+      fetch('/api/admin/requests', {
+        method: 'PATCH',
+        headers: { 'X-Admin-Secret': secret, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: req.id, status: nextStatus }),
+      })
+    );
   };
 
   return (
     <div id="leads_admin_dashboard" className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-sm transition-opacity">
-      
+
       {/* Tap out zone on left to close */}
       <div className="flex-grow" onClick={onClose} />
 
@@ -204,21 +181,19 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
           </div>
 
           <div className="flex gap-2">
-            {/* Seed mock button */}
             <button
-              onClick={handleSeedData}
-              className="px-2.5 py-1.5 text-[10px] bg-indigo-950/50 hover:bg-indigo-950 text-indigo-400 border border-indigo-900/60 font-mono tracking-wider uppercase rounded flex items-center gap-1.5"
-              title="Заполнить демо-данными для проверки обратной связи"
+              onClick={ensureSecretAndLoad}
+              className="p-1.5 px-2.5 bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 rounded text-xs flex items-center gap-1.5"
+              title="Обновить данные"
             >
-              <Sparkles size={11} />
-              <span>Демо-тест</span>
+              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+              <span>Обновить</span>
             </button>
 
-            {/* Clear All */}
             {(activeTab === 'trials' ? trials.length : feedbacks.length) > 0 && (
               <button
                 onClick={handleClearAll}
-                className="p-1 px-2.5 bg-zinc-900 text-zinc-400 hover:text-red-500 border border-zinc-800 rounded text-xs"
+                className="p-1.5 px-2.5 bg-zinc-900 text-zinc-400 hover:text-red-500 border border-zinc-800 rounded text-xs"
               >
                 Очистить
               </button>
@@ -228,15 +203,26 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
 
         {/* Scrollable list content */}
         <div className="flex-grow p-6 overflow-y-auto space-y-4">
-          
-          {/* TAB 1: TRIAL REGISTRATIONS */}
-          {activeTab === 'trials' && (
+
+          {authError && (
+            <div className="text-center py-16 text-red-500">
+              <Trophy size={44} className="mx-auto mb-3 opacity-40" />
+              <p className="font-medium text-sm">{authError}</p>
+              <button
+                onClick={ensureSecretAndLoad}
+                className="mt-4 text-xs underline text-zinc-400 hover:text-white"
+              >
+                Попробовать снова
+              </button>
+            </div>
+          )}
+
+          {!authError && activeTab === 'trials' && (
             <div className="space-y-4" id="admin_trials_list">
               {trials.length === 0 ? (
                 <div className="text-center py-16 text-zinc-600">
                   <PhoneCall size={44} className="mx-auto mb-3 opacity-20" />
                   <p className="font-medium text-sm">Новых заявок на пробные занятия нет</p>
-                  <p className="text-xs text-zinc-600 mt-1">Оставьте заявку на сайте или воспользуйтесь кнопкой «Демо-тест»</p>
                 </div>
               ) : (
                 trials.map(trial => (
@@ -253,16 +239,16 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
                           {trial.name}
                         </h4>
                         <span className="text-zinc-500 text-[10px] font-mono leading-none">
-                          ID: {trial.id} · {new Date(trial.submittedAt).toLocaleString('ru-RU')}
+                          {new Date(trial.created_at).toLocaleString('ru-RU')}
                         </span>
                       </div>
-                      
+
                       <div className="flex gap-1">
                         <button
-                          onClick={() => handleToggleTrialStatus(trial.id)}
+                          onClick={() => handleToggleStatus(trial)}
                           className={`p-1.5 rounded transition-colors ${
-                            trial.status === 'new' 
-                              ? 'bg-zinc-800 text-zinc-400 hover:text-green-500' 
+                            trial.status === 'new'
+                              ? 'bg-zinc-800 text-zinc-400 hover:text-green-500'
                               : 'bg-green-950/40 text-green-500 hover:bg-zinc-800'
                           }`}
                           title={trial.status === 'new' ? 'Отметить как решено' : 'Вернуть в новые'}
@@ -270,7 +256,7 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
                           <Check size={14} />
                         </button>
                         <button
-                          onClick={() => handleDeleteTrial(trial.id)}
+                          onClick={() => handleDelete(trial.id)}
                           className="p-1.5 bg-zinc-800 text-zinc-500 hover:text-red-500 rounded transition-colors"
                         >
                           <Trash2 size={14} />
@@ -287,7 +273,7 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
                       </div>
                       <div>
                         <span className="text-[10px] text-zinc-600 font-mono block">ВОЗРАСТ УЧЕНИКА</span>
-                        <span className="text-zinc-300 text-sm font-semibold">{trial.studentAge} лет</span>
+                        <span className="text-zinc-300 text-sm font-semibold">{trial.age ?? '—'} лет</span>
                       </div>
                     </div>
                   </div>
@@ -296,14 +282,12 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
             </div>
           )}
 
-          {/* TAB 2: QUESTIONS & FEEDBACK */}
-          {activeTab === 'feedback' && (
+          {!authError && activeTab === 'feedback' && (
             <div className="space-y-4" id="admin_feeds_list">
               {feedbacks.length === 0 ? (
                 <div className="text-center py-16 text-zinc-600">
                   <MessageSquare size={44} className="mx-auto mb-3 opacity-20" />
                   <p className="font-medium text-sm">Входящих вопросов и отзывов нет</p>
-                  <p className="text-xs text-zinc-600 mt-1">Оставьте сообщение через форму обратной связи на сайте</p>
                 </div>
               ) : (
                 feedbacks.map(feed => (
@@ -320,16 +304,16 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
                           {feed.name}
                         </h4>
                         <span className="text-zinc-500 text-[10px] font-mono leading-none">
-                          {new Date(feed.submittedAt).toLocaleString('ru-RU')}
+                          {new Date(feed.created_at).toLocaleString('ru-RU')}
                         </span>
                       </div>
-                      
+
                       <div className="flex gap-1">
                         <button
-                          onClick={() => handleToggleFeedStatus(feed.id)}
+                          onClick={() => handleToggleStatus(feed)}
                           className={`p-1.5 rounded transition-colors ${
-                            feed.status === 'unread' 
-                              ? 'bg-zinc-800 text-zinc-400 hover:text-green-500' 
+                            feed.status === 'unread'
+                              ? 'bg-zinc-800 text-zinc-400 hover:text-green-500'
                               : 'bg-green-950/40 text-green-500 hover:bg-zinc-800'
                           }`}
                           title={feed.status === 'unread' ? 'Пометить прочитанным' : 'Пометить непрочитанным'}
@@ -337,7 +321,7 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
                           <Check size={14} />
                         </button>
                         <button
-                          onClick={() => handleDeleteFeedback(feed.id)}
+                          onClick={() => handleDelete(feed.id)}
                           className="p-1.5 bg-zinc-800 text-zinc-500 hover:text-red-500 rounded transition-colors"
                         >
                           <Trash2 size={14} />
@@ -360,7 +344,7 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
                       </div>
                       <div>
                         <span className="text-[10px] text-zinc-600 font-mono block">ВОЗРАСТ</span>
-                        <span className="text-zinc-300 text-xs font-semibold">{feed.age} лет</span>
+                        <span className="text-zinc-300 text-xs font-semibold">{feed.age ?? '—'} лет</span>
                       </div>
                     </div>
                   </div>
@@ -373,7 +357,7 @@ export default function LeadDashboard({ onClose, onDataChanged }: LeadDashboardP
 
         {/* Persistent bottom metadata bar */}
         <div className="p-4 bg-zinc-900/80 border-t border-zinc-950 text-center text-zinc-600 font-mono text-[9px]">
-          Школа СТАЛЬ © 2026 · Данные сохраняются локально в вашем браузере
+          Школа СТАЛЬ © 2026 · Данные хранятся в Supabase
         </div>
       </motion.div>
     </div>

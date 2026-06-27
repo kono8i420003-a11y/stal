@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Users, Shield, CheckCircle } from 'lucide-react';
-import { TrialRequest } from '../types';
 
 interface TrialSectionProps {
   selectedProgram: string;
-  onNewRequestAdded: () => void;
 }
 
-export default function TrialSection({ selectedProgram, onNewRequestAdded }: TrialSectionProps) {
+export default function TrialSection({ selectedProgram }: TrialSectionProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [age, setAge] = useState('');
+  const [company, setCompany] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -75,6 +74,11 @@ export default function TrialSection({ selectedProgram, onNewRequestAdded }: Tri
     e.preventDefault();
     setErrorMsg('');
 
+    // Honeypot: bots tend to fill every input, real users never see this field.
+    if (company.trim()) {
+      return;
+    }
+
     if (!name.trim()) {
       setErrorMsg('Пожалуйста, введите ваше имя');
       return;
@@ -93,22 +97,7 @@ export default function TrialSection({ selectedProgram, onNewRequestAdded }: Tri
       return;
     }
 
-    // Save registration to localStorage
-    const saved = localStorage.getItem('stal_trial_requests');
-    const existing: TrialRequest[] = saved ? JSON.parse(saved) : [];
-    
-    const newRequest: TrialRequest = {
-      id: Math.random().toString(36).substring(2, 9),
-      name: name.trim(),
-      phone: phone,
-      studentAge: ageNum,
-      submittedAt: new Date().toISOString(),
-      status: 'new'
-    };
-
-    localStorage.setItem('stal_trial_requests', JSON.stringify([newRequest, ...existing]));
-    
-    // Asynchronously send to telegram proxy server API
+    // Asynchronously send to telegram proxy server API (also persists the lead in Supabase)
     fetch('/api/notify-telegram', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -117,7 +106,8 @@ export default function TrialSection({ selectedProgram, onNewRequestAdded }: Tri
         name: name.trim(),
         phone: phone,
         age: ageNum,
-        message: 'Хочет записаться на пробную бесплатную тренировку'
+        message: 'Хочет записаться на пробную бесплатную тренировку',
+        company
       })
     })
     .then(res => res.json())
@@ -130,9 +120,6 @@ export default function TrialSection({ selectedProgram, onNewRequestAdded }: Tri
     setAge('');
     setIsSuccess(true);
     setErrorMsg('');
-    
-    // Alert parent to update admin count
-    onNewRequestAdded();
 
     // Reset success banner after 5 sec
     setTimeout(() => {
@@ -227,7 +214,19 @@ export default function TrialSection({ selectedProgram, onNewRequestAdded }: Tri
                 ) : (
                   <div id="trial_form_content">
                     <form onSubmit={handleSubmit} className="space-y-5">
-                      
+
+                      {/* Honeypot field: hidden from real users, catches bots */}
+                      <input
+                        type="text"
+                        name="company"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                        tabIndex={-1}
+                        autoComplete="off"
+                        aria-hidden="true"
+                        className="absolute opacity-0 pointer-events-none w-0 h-0"
+                      />
+
                       {/* Name input */}
                       <div className="flex flex-col gap-1.5">
                         <label className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">Имя</label>

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { saveRequest } from './_lib/supabase.js';
+import { saveRequest, wasSubmittedRecently } from './_lib/supabase.js';
+import { escapeHtml } from './_lib/telegram.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
@@ -22,11 +23,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { source, name, phone, age, message } = req.body;
+    const { source, name, phone, age, message, company } = req.body;
+
+    // Honeypot field: real users never fill this hidden input, bots usually do.
+    if (company) {
+      res.json({ status: 'success', message: 'Заявка принята.' });
+      return;
+    }
 
     if (!name || !phone) {
-      res.status(400).json({ 
-        error: 'Пожалуйста, заполните необходимые поля: имя и телефон.' 
+      res.status(400).json({
+        error: 'Пожалуйста, заполните необходимые поля: имя и телефон.'
+      });
+      return;
+    }
+
+    if (await wasSubmittedRecently(phone)) {
+      res.status(429).json({
+        error: 'Заявка с этим номером телефона уже отправлена. Пожалуйста, подождите минуту перед повторной отправкой.'
       });
       return;
     }
@@ -54,14 +68,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const heading = source === 'trial' ? '🔴 НОВАЯ ЗАЯВКА НА ПРОБНУЮ ТРЕНИРОВКУ' : '✉️ НОВОЕ СООБЩЕНИЕ ОБРАТНОЙ СВЯЗИ';
     let text = `<b>${heading}</b>\n\n`;
-    text += `<b>👤 Имя:</b> ${name}\n`;
-    text += `<b>📞 Телефон:</b> ${phone}\n`;
-    text += `<b>🎂 Возраст ученика:</b> ${age || 'Не указан'}\n`;
-    
+    text += `<b>👤 Имя:</b> ${escapeHtml(name)}\n`;
+    text += `<b>📞 Телефон:</b> ${escapeHtml(phone)}\n`;
+    text += `<b>🎂 Возраст ученика:</b> ${age ? escapeHtml(String(age)) : 'Не указан'}\n`;
+
     if (message) {
-      text += `<b>💬 Сообщение:</b> \n<i>${message}</i>\n`;
+      text += `<b>💬 Сообщение:</b> \n<i>${escapeHtml(message)}</i>\n`;
     }
-    
+
     text += `\n<i>Школа СТАЛЬ © ${new Date().getFullYear()}</i>`;
 
     const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
