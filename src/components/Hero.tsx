@@ -19,7 +19,7 @@ export default function Hero({ onTrialClick, onProgramsClick }: HeroProps) {
         <img
           src={heroBg}
           alt="Martial Arts Sparring"
-          className="w-full h-full object-cover object-center opacity-45 scale-100 filter contrast-125 saturate-100 brightness-90 transition-all duration-1000"
+          className="w-full h-full object-cover object-center opacity-60 scale-100 filter contrast-125 saturate-100 brightness-110 transition-all duration-1000"
           referrerPolicy="no-referrer"
         />
         {/* Dark radial gradient overlay for focus and contrast */}
