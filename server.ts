@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
+import { saveRequest } from './api/_lib/supabase';
 
 // Load environment variables
 dotenv.config();
@@ -34,6 +35,14 @@ async function startServer() {
         });
         return;
       }
+
+      await saveRequest({
+        type: source === 'trial' ? 'trial' : 'feedback',
+        name,
+        phone,
+        age: age ? Number(age) : null,
+        message,
+      });
 
       const token = process.env.TELEGRAM_BOT_TOKEN;
       const chatId = process.env.TELEGRAM_CHAT_ID;

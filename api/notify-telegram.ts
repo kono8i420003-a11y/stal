@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { saveRequest } from './_lib/supabase';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
@@ -29,6 +30,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       return;
     }
+
+    await saveRequest({
+      type: source === 'trial' ? 'trial' : 'feedback',
+      name,
+      phone,
+      age: age ? Number(age) : null,
+      message,
+    });
 
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
